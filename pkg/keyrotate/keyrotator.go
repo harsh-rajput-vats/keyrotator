@@ -152,6 +152,48 @@ func (c *APIKeyConfig) MarkKeyAsExhausted(category, keyID string) error {
 	return nil
 }
 
+// StartMidnightReset starts a goroutine to reset keys at specified timezone midnight
+func (c *APIKeyConfig) StartMidnightReset(timezone *time.Location) {
+	go func() {
+		for {
+			now := time.Now().In(timezone)
+			nextMidnight := now.Truncate(24 * time.Hour).Add(24 * time.Hour)
+			sleepDuration := time.Until(nextMidnight)
+
+			time.Sleep(sleepDuration)
+			c.ResetExhaustedKeys()
+		}
+	}()
+}
+
+// ResetExhaustedKeys resets all exhausted keys across all categories
+func (c *APIKeyConfig) ResetExhaustedKeys() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for category := range c.ExhaustedKeys {
+		for keyID := range c.ExhaustedKeys[category] {
+			c.ExhaustedKeys[category][keyID] = false
+		}
+	}
+}
+
+// GetUsageStatistics returns usage statistics for all keys
+func (c *APIKeyConfig) GetUsageStatistics() map[string]map[string]int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// Create a deep copy to prevent external modifications
+	stats := make(map[string]map[string]int)
+	for category, keys := range c.UsageCount {
+		stats[category] = make(map[string]int)
+		for keyID, count := range keys {
+			stats[category][keyID] = count
+		}
+	}
+	return stats
+}
+
 // Reload reloads the configuration from the original file
 func (c *APIKeyConfig) Reload() error {
 	newConfig, err := NewAPIKeyConfig(c.ConfigPath)
