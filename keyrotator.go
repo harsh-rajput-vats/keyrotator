@@ -11,7 +11,13 @@ import (
 	"time"
 )
 
-var resetInstance int = 1;
+// Logger is a configurable logger for this package
+var Logger = log.Default()
+
+// SetLogger allows users to configure their own logger
+func SetLogger(customLogger *log.Logger) {
+	Logger = customLogger
+}
 
 // APIKeyConfig represents the configuration for API keys
 type APIKeyConfig struct {
@@ -159,19 +165,21 @@ func (c *APIKeyConfig) MarkKeyAsExhausted(category, keyID string) error {
 func (c *APIKeyConfig) StartMidnightReset(timezone *time.Location) {
 	go func() {
 		for {
+			resetInstance := 1
 			now := time.Now().In(timezone)
 			nextMidnight := now.Truncate(24 * time.Hour).Add(24 * time.Hour)
 			sleepDuration := time.Until(nextMidnight)
 			// Log the scheduled reset time
 			log.Printf("Next key reset scheduled for %v (%s)", nextMidnight, timezone.String())
 			time.Sleep(sleepDuration)
-			c.ResetExhaustedKeys()
+			c.ResetExhaustedKeys(resetInstance);
+			resetInstance++;
 		}
 	}()
 }
 
 // ResetExhaustedKeys resets all exhausted keys across all categories
-func (c *APIKeyConfig) ResetExhaustedKeys() {
+func (c *APIKeyConfig) ResetExhaustedKeys(instance int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	resetCount := 0
@@ -183,8 +191,7 @@ func (c *APIKeyConfig) ResetExhaustedKeys() {
 			c.ExhaustedKeys[category][keyID] = false
 		}
 	}
-	log.Printf("%d reset completed: %d exhausted keys were reset across all categories", resetInstance, resetCount)
-	resetInstance++
+	log.Printf("%d reset completed: %d exhausted keys were reset across all categories", instance, resetCount)
 }
 
 // GetUsageStatistics returns usage statistics for all keys
