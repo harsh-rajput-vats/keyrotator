@@ -3,12 +3,15 @@ package keyrotator
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 )
+
+var resetInstance int = 1;
 
 // APIKeyConfig represents the configuration for API keys
 type APIKeyConfig struct {
@@ -159,7 +162,8 @@ func (c *APIKeyConfig) StartMidnightReset(timezone *time.Location) {
 			now := time.Now().In(timezone)
 			nextMidnight := now.Truncate(24 * time.Hour).Add(24 * time.Hour)
 			sleepDuration := time.Until(nextMidnight)
-
+			// Log the scheduled reset time
+			log.Printf("Next key reset scheduled for %v (%s)", nextMidnight, timezone.String())
 			time.Sleep(sleepDuration)
 			c.ResetExhaustedKeys()
 		}
@@ -170,12 +174,17 @@ func (c *APIKeyConfig) StartMidnightReset(timezone *time.Location) {
 func (c *APIKeyConfig) ResetExhaustedKeys() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
+	resetCount := 0
 	for category := range c.ExhaustedKeys {
-		for keyID := range c.ExhaustedKeys[category] {
+		for keyID, wasExhausted := range c.ExhaustedKeys[category] {
+			if wasExhausted {
+				resetCount++
+			}
 			c.ExhaustedKeys[category][keyID] = false
 		}
 	}
+	log.Printf("%d reset completed: %d exhausted keys were reset across all categories", resetInstance, resetCount)
+	resetInstance++
 }
 
 // GetUsageStatistics returns usage statistics for all keys
