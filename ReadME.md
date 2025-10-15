@@ -34,7 +34,7 @@
 
 ## Installation
 ```bash
-go get github.com/harsh-rajput-vats/keyrotator
+go get github.com/harsh-side/keyrotator
 ```
 
 ## Quick Start
